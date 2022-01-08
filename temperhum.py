@@ -35,7 +35,7 @@ def byte_array_to_hex_string( byte_array ):
     if array_size == 0:
         s = ""
     else:
-        s = ""         
+        s = ""
         for var in list(range(array_size)):
             b = hex(byte_array[var])
             b = b.replace( "0x", "")
@@ -70,6 +70,7 @@ if "--help" in params:
     print ("--debug         turn on debugging output")
     print ("--reattach      if the usb device is attached to a kernel driver, default is to detach it, and leave it that way")
     print ("                this option forces a reattach to the kernel driver on exit")
+    print ("--temp-offset   temperature offset added to the temperature")
     print ("")
     exit(0)
 
@@ -114,6 +115,11 @@ else:
 if DEBUG == True:
     print ("--debug =", DEBUG, "  --f =", not CELSIUS, "  --nosymbols =", NOSYMBOLS, "  --reattach =", REATTACH)
 
+temp_offset = 0.0
+if "--temp-offset" in params:
+    i = params.index("--temp-offset");
+    temp_offset = float(params[i+1])
+
 # Try to find the Temperhum usb device
 
 device = usb.core.find(idVendor = Temperhum_Vendor, idProduct = Temperhum_Product)
@@ -129,7 +135,7 @@ else:
         print ("-" * 20, "Device Information", "-" * 20)
         print (device)
         print ("-" * 20, "Device Information", "-" * 20)
-        
+
 # check if it has a kernal driver, if so set a reattach flag and detach it
 
 reattach = False
@@ -140,7 +146,7 @@ if device.is_kernel_driver_active(1):
         if REATTACH:
             print (" and reattach at the end")
         else:
-            print (" and leave it detached") 
+            print (" and leave it detached")
 
     result = device.detach_kernel_driver(1)
 
@@ -158,7 +164,7 @@ inf = cfg[Temperhum_Interface,0]
 
 if DEBUG == True:
     print ("Claiming the device interface", Temperhum_Interface, "for use")
-    
+
 result = usb.util.claim_interface(device, Temperhum_Interface)
 if result != None:
     print ("Error: unable to claim the interface")
@@ -167,7 +173,7 @@ else:
     if DEBUG == True:
         print ("Claimed interface ok")
 
-# Extract the read and write endpoint information 
+# Extract the read and write endpoint information
 
 ep_read = inf[0]
 ep_write = inf[1]
@@ -208,24 +214,25 @@ except:
 else:
     if DEBUG == True:
         print ("Data returned from device =", data)
-    
+
 # Decode the temperature and humidity
 
 if CELSIUS == True:
-    temperature = round( ( twos_complement( (data[2] * 256) + data[3],16 ) ) / 100, 1 )
-    
+    temperature = round( ( twos_complement( (data[2] * 256) + data[3],16 ) ) / 100.0, 1 )
+
 else:
-    temperature = round( ( twos_complement( (data[2] * 256) + data[3],16 ) ) / 100 * 9/5 + 32, 1 )
-    
+    temperature = round( ( twos_complement( (data[2] * 256) + data[3],16 ) ) / 100. * 9./5. + 32, 1 )
+temperature = temperature + temp_offset
+
 humidity = int( ( (data[4] * 256) + data[5] ) / 100 )
 
 # Add symbols unless turned off by --nosymbols parameter
 
 if NOSYMBOLS == False:
     if CELSIUS == True:
-        temperature = str(temperature) + "C"
+        temperature = ("%.1f" % temperature) + "°C"
     else:
-        temperature = str(temperature) + "F"
+        temperature = ("%.1f" % temperature) + "°F"
 
     humidity = str(humidity) + "%"
 
@@ -247,7 +254,7 @@ if DEBUG == True:
 
     print ("-" * dashes)
     print ("")
-else:    
+else:
     print (temperature, humidity, end="")
 
     if RAW == True:
